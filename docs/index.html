@@ -194,7 +194,7 @@
     const result = document.getElementById("result");
     const error = document.getElementById("error");
 
-    form.addEventListener("submit", async function (event) {
+    form.addEventListener("submit", function (event) {
         event.preventDefault();
 
         const message = messageInput.value.trim();
@@ -211,38 +211,83 @@
         button.textContent = "Analysing...";
 
         try {
-            const response = await fetch("/api/check", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
+            const text = message.toLowerCase();
+            const reasons = [];
+            let score = 0;
+
+            const rules = [
+                {
+                    pattern: /\b(otp|one[- ]time password|password|pin|cvv|bank details|account number)\b/i,
+                    points: 35,
+                    reason: "Requests sensitive banking or account information"
                 },
-                body: JSON.stringify({ message: message })
+                {
+                    pattern: /\b(won|winner|prize|lottery|reward|claim your gift|free gift)\b/i,
+                    points: 25,
+                    reason: "Contains a suspicious prize or reward claim"
+                },
+                {
+                    pattern: /\b(urgent|immediately|act now|expires today|limited time|right now)\b/i,
+                    points: 20,
+                    reason: "Uses urgency or pressure to make you act quickly"
+                },
+                {
+                    pattern: /\b(click here|verify your account|suspended account|confirm your details|login now)\b/i,
+                    points: 25,
+                    reason: "Asks you to click a link or verify account details"
+                },
+                {
+                    pattern: /\b(send money|transfer money|pay a fee|processing fee|gift card)\b/i,
+                    points: 30,
+                    reason: "Requests money or an unusual payment"
+                },
+                {
+                    pattern: /\b(you have been selected|congratulations|guaranteed profit|double your money)\b/i,
+                    points: 20,
+                    reason: "Makes an offer that could be misleading"
+                },
+                {
+                    pattern: /https?:\/\/|www\./i,
+                    points: 15,
+                    reason: "Contains a web link; check it carefully before opening"
+                },
+                {
+                    pattern: /\b(share this code|tell me your otp|send me your password)\b/i,
+                    points: 35,
+                    reason: "Asks you to share a secret code or password"
+                }
+            ];
+
+            rules.forEach(function (rule) {
+                if (rule.pattern.test(text)) {
+                    score += rule.points;
+                    reasons.push(rule.reason);
+                }
             });
 
-            if (!response.ok) {
-                throw new Error("Server error: " + response.status);
+            score = Math.min(score, 100);
+
+            let riskLevel;
+
+            if (score >= 60) {
+                riskLevel = "HIGH";
+            } else if (score >= 30) {
+                riskLevel = "MEDIUM";
+            } else {
+                riskLevel = "LOW";
             }
 
-            const data = await response.json();
+            const riskLevelElement = document.getElementById("riskLevel");
+            riskLevelElement.textContent = riskLevel;
+            riskLevelElement.className = riskLevel.toLowerCase();
 
-            if (data.error) {
-                throw new Error(data.error);
-            }
-
-            document.getElementById("riskLevel").textContent =
-                data.riskLevel;
-
-            document.getElementById("riskLevel").className =
-                data.riskLevel.toLowerCase();
-
-            document.getElementById("riskScore").textContent =
-                data.riskScore;
+            document.getElementById("riskScore").textContent = score;
 
             const reasonsList = document.getElementById("reasons");
             reasonsList.replaceChildren();
 
-            if (data.reasons && data.reasons.length > 0) {
-                data.reasons.forEach(function (reason) {
+            if (reasons.length > 0) {
+                reasons.forEach(function (reason) {
                     const item = document.createElement("li");
                     item.textContent = reason;
                     reasonsList.appendChild(item);
@@ -250,16 +295,15 @@
             } else {
                 const item = document.createElement("li");
                 item.textContent =
-                    "No warning signs detected by the current rules.";
+                    "No known warning signs detected. This does not guarantee the message is safe.";
                 reasonsList.appendChild(item);
             }
 
             result.style.display = "block";
 
         } catch (err) {
-            error.textContent =
-                "Could not analyse the message. Make sure ScamShield is running. "
-                + err.message;
+            error.textContent = "An error occurred while analysing the message.";
+            console.error(err);
         } finally {
             button.disabled = false;
             button.textContent = "Check for Scam";
