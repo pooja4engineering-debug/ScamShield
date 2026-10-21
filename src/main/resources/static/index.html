@@ -1,0 +1,271 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScamShield | Scam Detector</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f6fc;
+            color: #182338;
+        }
+
+        header {
+            background: #172554;
+            color: white;
+            padding: 22px 8%;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        header span {
+            color: #60a5fa;
+        }
+
+        main {
+            max-width: 760px;
+            margin: 55px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px #17255412;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 30px;
+        }
+
+        .description {
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        label {
+            display: block;
+            margin: 24px 0 10px;
+            font-weight: bold;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 15px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font: inherit;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: 2px solid #60a5fa;
+            border-color: #2563eb;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 16px;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: #2563eb;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            opacity: 0.65;
+            cursor: wait;
+        }
+
+        #result {
+            display: none;
+            margin-top: 24px;
+            padding: 22px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+
+        #riskLevel {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .high {
+            color: #dc2626;
+        }
+
+        .medium {
+            color: #d97706;
+        }
+
+        .low {
+            color: #15803d;
+        }
+
+        #reasons {
+            padding-left: 22px;
+            line-height: 1.8;
+        }
+
+        #error {
+            color: #dc2626;
+            margin-top: 15px;
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            padding: 25px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>🛡️ Scam<span>Shield</span></header>
+
+<main>
+    <section class="card">
+        <h1>Detect scams before they trick you.</h1>
+
+        <p class="description">
+            Paste a suspicious SMS, email, or message below.
+            ScamShield will analyse it and identify warning signs.
+        </p>
+
+        <form id="scamForm">
+            <label for="message">Suspicious message</label>
+
+            <textarea
+                id="message"
+                placeholder="Example: Congratulations! You won a prize. Enter your bank details."
+                required
+            ></textarea>
+
+            <button id="checkButton" type="submit">
+                Check for Scam
+            </button>
+        </form>
+
+        <p id="error" role="alert"></p>
+
+        <section id="result" aria-live="polite">
+            <h2>Analysis Result</h2>
+            <p>Risk level: <span id="riskLevel"></span></p>
+            <p>Risk score: <strong id="riskScore"></strong> / 100</p>
+
+            <h3>Warning signs</h3>
+            <ul id="reasons"></ul>
+        </section>
+    </section>
+</main>
+
+<footer>
+    ScamShield — Stay alert. Stay safe.
+    <br><br>
+    This tool provides an initial assessment, not a guarantee.
+</footer>
+
+<script>
+    const form = document.getElementById("scamForm");
+    const messageInput = document.getElementById("message");
+    const button = document.getElementById("checkButton");
+    const result = document.getElementById("result");
+    const error = document.getElementById("error");
+
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const message = messageInput.value.trim();
+
+        if (!message) {
+            error.textContent = "Please enter a message to analyse.";
+            result.style.display = "none";
+            return;
+        }
+
+        error.textContent = "";
+        result.style.display = "none";
+        button.disabled = true;
+        button.textContent = "Analysing...";
+
+        try {
+            const response = await fetch("/api/check", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ message: message })
+            });
+
+            if (!response.ok) {
+                throw new Error("Server error: " + response.status);
+            }
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            document.getElementById("riskLevel").textContent =
+                data.riskLevel;
+
+            document.getElementById("riskLevel").className =
+                data.riskLevel.toLowerCase();
+
+            document.getElementById("riskScore").textContent =
+                data.riskScore;
+
+            const reasonsList = document.getElementById("reasons");
+            reasonsList.replaceChildren();
+
+            if (data.reasons && data.reasons.length > 0) {
+                data.reasons.forEach(function (reason) {
+                    const item = document.createElement("li");
+                    item.textContent = reason;
+                    reasonsList.appendChild(item);
+                });
+            } else {
+                const item = document.createElement("li");
+                item.textContent =
+                    "No warning signs detected by the current rules.";
+                reasonsList.appendChild(item);
+            }
+
+            result.style.display = "block";
+
+        } catch (err) {
+            error.textContent =
+                "Could not analyse the message. Make sure ScamShield is running. "
+                + err.message;
+        } finally {
+            button.disabled = false;
+            button.textContent = "Check for Scam";
+        }
+    });
+</script>
+
+</body>
+</html>
